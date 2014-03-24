@@ -1,0 +1,15 @@
+Describe any design decisions you made, including your choice of page eviction policy. If you used something other than a nested-loops join, describe the tradeoffs of the algorithm you chose.
+
+We decided to simply implement the join function using nested loops. We chose to use the Least Recently Used eviction policy for our Buffer Pool through a Linked List data structure which acts as a queue and evicts the last element in the list. After each page access, we make sure to put that page in the front of the list.
+
+Discuss and justify any changes you made to the API.
+
+We didn't make any changes to the API.
+
+Describe any missing or incomplete elements of your code.
+
+We don't have any missing or incomplete elements of our code, in terms of methods that needed implementation for project 2.
+
+Describe how long you spent on the project, and whether there was anything you found particularly difficult or confusing.
+
+This project took about 20 hours to complete. IntegerAggregator took some time to perfect since there were so many cases to account for, but after some line by line debugging, we were able to track down the errors. HeapFile insertTuple and deleteTuple were slightly confusing in terms of how they had to find the next free page and access the page from the Buffer Pool, but it wasn't hard to implement after some thought.
