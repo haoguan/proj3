@@ -1,15 +1,57 @@
-Describe any design decisions you made, including your choice of page eviction policy. If you used something other than a nested-loops join, describe the tradeoffs of the algorithm you chose.
+Question 1
 
-We decided to simply implement the join function using nested loops. We chose to use the Least Recently Used eviction policy for our Buffer Pool through a Linked List data structure which acts as a queue and evicts the last element in the list. After each page access, we make sure to put that page in the front of the list.
+Step 1: simpledb.Parser.main() and simpledb.Parser.start()
 
-Discuss and justify any changes you made to the API.
+simpledb.Parser.main() is the entry point for the SimpleDB system. It calls simpledb.Parser.start(). The latter performs three main actions:
+- It populates the SimpleDB catalog from the catalog text file provided by the user as argument (Database.getCatalog().loadSchema(argv[0]);).
+- For each table defined in the system catalog, it computes statistics over the data in the table by calling: TableStats.computeStatistics(), which then does: TableStats s = new TableStats(tableid, IOCOSTPERPAGE);
+- It processes the statements submitted by the user (processNextStatement(new ByteArrayInputStream(statementBytes));)
 
-We didn't make any changes to the API.
+Step 2: simpledb.Parser.processNextStatement()
 
-Describe any missing or incomplete elements of your code.
+This method takes two key actions:
+- First, it gets a physical plan for the query by invoking handleQueryStatement((ZQuery)s);
+- Then it executes the query by calling query.execute();
 
-We don't have any missing or incomplete elements of our code, in terms of methods that needed implementation for project 2.
+Step 3: simpledb.Parser.handleQueryStatement()
 
-Describe how long you spent on the project, and whether there was anything you found particularly difficult or confusing.
+- This method first calls parseQueryLogicalPlan((ZQuery)s, tId) to get the logical plan for the query. 
+- Then, it tries to get a physical plan from the logical plan by calling LogicalPlan.physicalPlan(tId, TableStats.getStatsMap(), explain). If there exists a physical plan, then it invokes OperatorCardinality.updateOperatorCardinality
 
-This project took about 20 hours to complete. IntegerAggregator took some time to perfect since there were so many cases to account for, but after some line by line debugging, we were able to track down the errors. HeapFile insertTuple and deleteTuple were slightly confusing in terms of how they had to find the next free page and access the page from the Buffer Pool, but it wasn't hard to implement after some thought.
+Step 4: simpledb.Parser.parseQueryLogicalPlan()
+
+- First, walks through tables in the FROM clause if they exist, adding each as a scan to the logical plan.
+- Second, parses the WHERE clause by calling processExpression()
+- Third, checks for GROUP BY fields, at most one is present
+- Fourth, walks through SELECT list, picks out aggregates, and checks for query validity. If aggregates are valid, they're added to the logical plan
+- Fifth, sorts the data, getting ORDER BY if exists. 
+
+Step 5: simpledb.Parser.processExpression()
+
+simpledb.Parser.processExpression() processes the WHERE clauses of the query, creating filter/join nodes if necessary. If there are nested subqueries, it process the subqueries as regular queries. Filter/join nodes are added to the logical plan if they exist.
+
+Step 6: simpledb.LogicalPlan.physicalPlan()
+
+simpledb.LogicalPlan.physicalPlan() converts the logical plan into a physical plan by 
+
+Question 6.1
+
+The query plan our optimizer selected (for the 1% dataset) is:
+                                           π(d.fname,d.lname),card:1
+                                            |
+                                           ⨝(m.did=d.id),card:1
+                   _________________________|_________________________
+                   |                                                 |
+                  ⨝(a.id=c.pid),card:1                               |
+  _________________|__________________                               |
+  |                                  |                               |
+ σ(a.lname=Spicer),card:1          ⨝(c.mid=m.mid),card:1             |
+  |                           _______|________                       |
+ σ(a.fname=John),card:1      |                |                      |
+  |                         scan(Casts c)  scan(Movie_Director m)  scan(Director d)
+scan(Actor a)
+
+The orderJoins returns the plan with the best cost, which is computed in the helper function, computeCostandCardOfSubplan. This plan that the orderJoin returns makes sense because we would want to first join the Cast table and Movie Director table to get the condition that c.mid = m.mid. Then it selects fname=John and lname=Spicer from the Actor table so that the next step, joining the selection with the previous join result of Casts and Movie Directors, has a lower cost. Lastly it joins the previous result with the Director table so that the condition m.did=d.id is met and then selects d.fname and d.lname. 
+
+
+
