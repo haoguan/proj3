@@ -118,7 +118,11 @@ The orderJoins returns the plan with the best cost here as well, again computed 
 
 Discuss and justify any changes you made to the API.
 
+We only added one method, StringHistogram.getNumTups(), to get the number of tuples. Otherwise no changes were made.
+
 Describe any missing or incomplete elements of your code.
+
+We don't have any missing or incomplete elements of our code, in terms of methods that needed implementation for project 3.
 
 Describe how long you spent on the project, and whether there was anything you found particularly difficult or confusing.
 
