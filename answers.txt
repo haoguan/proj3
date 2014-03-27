@@ -15,7 +15,7 @@ This method takes two key actions:
 
 Step 3: simpledb.Parser.handleQueryStatement()
 
-- This method first calls parseQueryLogicalPlan((ZQuery)s, tId) to get the logical plan for the query. 
+- This method first calls parseQueryLogicalPlan(tId, (ZQuery)s) to get the logical plan for the query. 
 - Then, it tries to get a physical plan from the logical plan by calling LogicalPlan.physicalPlan(tId, TableStats.getStatsMap(), explain). If there exists a physical plan, then it invokes OperatorCardinality.updateOperatorCardinality
 
 Step 4: simpledb.Parser.parseQueryLogicalPlan()
@@ -28,11 +28,50 @@ Step 4: simpledb.Parser.parseQueryLogicalPlan()
 
 Step 5: simpledb.Parser.processExpression()
 
-simpledb.Parser.processExpression() processes the WHERE clauses of the query, creating filter/join nodes if necessary. If there are nested subqueries, it process the subqueries as regular queries. Filter/join nodes are added to the logical plan if they exist.
+- simpledb.Parser.processExpression() processes the WHERE clauses of the query, creating filter/join nodes if necessary. If there are nested subqueries, it process the subqueries as regular queries. Filter/join nodes are added to the logical plan if they exist.
 
 Step 6: simpledb.LogicalPlan.physicalPlan()
 
-simpledb.LogicalPlan.physicalPlan() converts the logical plan into a physical plan by 
+simpledb.LogicalPlan.physicalPlan() converts the logical plan into a physical plan by returning a DbIterator representing the plan.
+- First, it loops through all the tables represented in the query and sets default selectivity of 1.0, e.g. a full table scan, for each.
+- Second, for each filter in the query, it determines the affected fields and updates the selectivity for that field's TableStats by calling s.estimateSelectivity(subplan.getTupleDesc().fieldNameToIndex(lf.fieldQuantifiedName), lf.p, f);
+- Third, it finds the optimal join orders by calling JoinOptimizer.orderJoins(statsMap,filterSelectivities,explain).
+- Fourth, using this order, it carries out the join operation which results in a DbIterator of joined tuples.
+- Finally, it goes through the select fields to figure out which fields to include in the final projection, taking into account aggregates and sorting order.
+
+Step 7: simpledb.TableStats.estimateSelectivity()
+
+- This method figures out the type of the predicate field, and calls the corresponding histogram function to estimate the selectivity of the predicate on that field.
+- It calls either IntHistogram.estimateSelectivity(op, val) or StringHistogram.estimateSelectivity(op, val).
+
+Step 8: simpledb.IntHistogram.estimateSelectivity() or simpledb.StringHistogram.estimateSelectivity()
+
+- This method takes the predicate and the field and returns an estimate of the fraction of elements within the tuples of the table that are needed to determine the answer to the operation.
+
+Step 9: simpledb.JoinOptimizer.orderJoins()
+
+This method computes and returns the best order of joins that results in the most optimal plan.
+- It computes subsets of size starting from 1 to joins.size() and loops through each subset. Within each subset, it loops through each node and computes the best way to join the node with the rest of the subset by calling computeCostAndCardOfSubplan(stats, filterSelectivities, node, subset, best.cost, pc);
+- For each iterated node, it checks the cost and if its the cheapest join so far, it records the information in the PlanCache for subsets of its size + 1 to easily reference in its computation.
+
+Step 10: simpledb.JoinOptimizer.computeCostAndCardOfSubplan()
+
+This method computes the cheapest way to join a node and the rest of the subset it belongs to, or null if no such linear joining is possible or cheaper than the best it has found.
+- This method first computes the table costs and cardinalities for the two tables that are to be joined when compared to the best ordering so far.
+- It then finds the join cost for both the current ordering and swapped table ordering by calling estimateJoinCost(j, t1card, t2card, t1cost, t2cost) and estimateJoinCost(j2, t1card, t2card, t1cost, t2cost) and selects the lower cost one.
+- Finally, if the join cost is the best one it has found so far, it records the cardinality of the resulting join by calling estimateJoinCardinality(j, t1card, t2card, leftPkey, rightPkey, stats), the cost and plan in a CostCard object, then returned.
+
+Step 11: simpledb.JoinOptimizer.estimateJoinCost()
+
+This function simply calculates the estimated cost of a join between the two tables given each table's scan cost and cardinality.
+- In this project, the estimate comes from adding the IO cost of the nested loops join and an additional CPU cost for processing each tuple.
+
+Step 12: simpledb.JoinOptimizer.estimateJoinCardinality()
+
+This function estimates the number of tuples produced by joining the two tables, given the individual table cardinalities and whether fields are primary/unique keys.
+- For equality join operations, it simply returns the larger cardinality.
+- For ranged join operations, it uses the heuristic of returning the number which is 30% of the number of tuples produced by the cross-product of the two tables.
+
 
 Question 6.1
 
