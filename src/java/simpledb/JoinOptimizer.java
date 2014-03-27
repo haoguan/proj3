@@ -264,7 +264,10 @@ public class JoinOptimizer {
         for (int i = 0; i < joins.size(); i++) {
             joinSet.add(joins.get(i));
         }
-        return pc.getOrder(joinSet);
+        Vector<LogicalJoinNode> order = pc.getOrder(joinSet);
+        if (order != null)
+            return order;
+        return joins;
     }
 
     // ===================== Private Methods =================================
