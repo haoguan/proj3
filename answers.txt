@@ -90,7 +90,7 @@ The query plan our optimizer selected (for the 1% dataset) is:
   |                         scan(Casts c)  scan(Movie_Director m)  scan(Director d)
 scan(Actor a)
 
-The orderJoins returns the plan with the best cost, which is computed in the helper function, computeCostandCardOfSubplan. This plan that the orderJoin returns makes sense because we would want to first join the Cast table and Movie Director table to get the condition that c.mid = m.mid, in other words get the directors matched with their cast. Then it selects fname=John and lname=Spicer from the Actor table so that the next step, joining the selection with the previous join result of Casts and Movie Directors, has a lower cost. Lastly it joins the previous result with the Director table so that the condition m.did=d.id is met and then selects d.fname and d.lname. 
+The orderJoins returns the plan with the best cost, which is computed in the helper function, computeCostandCardOfSubplan. This plan that the orderJoin returns makes sense because we would want to first join the Cast table and Movie Director table to get the condition that c.mid = m.mid, in other words get the directors matched with their cast. Then it selects fname=John and lname=Spicer from the Actor table so that the next step, joining the selection with the previous join result of Casts and Movie Directors, has a lower cost by having fewer tuples to consider. Lastly it joins the previous result with the Director table so that the condition m.did=d.id is met and then selects d.fname and d.lname. 
 
 Question 6.2
 
@@ -114,7 +114,7 @@ The query plan our optimizer selected (for the 1% dataset) is:
   |                            |              |              scan(Movie m)
 scan(Genre g)                scan(Actor a)  scan(Casts c)
 
-The orderJoins returns the plan with the best cost here as well, again computed in computeCostandCardOfSubplan. This plan makes sense because we would first want to join the Cast and Actor tables (a.id = c.pid), and then join that result with the Movie table to pair up all the actors with their respective movies (c.mid = m.id). Then we join that with the selection of movies with the genre = Comedy (g.mid = m.id) to get the resulting table of actors starring in Comedy films. Lastly the plan selects the actors' first and last names.
+The orderJoins returns the plan with the best cost here as well, again computed in computeCostandCardOfSubplan. This plan makes sense because we would first want to join the Cast and Actor tables (a.id = c.pid), and then join that result with the Movie table to pair up all the actors with their respective movies (c.mid = m.id). Then we join that with the selection of movies with the genre = Comedy (g.mid = m.id)--which reduces the number of tuples in the genre table to loop through--to get the resulting table of actors starring in Comedy films. Lastly the plan selects the actors' first and last names.
 
 Discuss and justify any changes you made to the API.
 
