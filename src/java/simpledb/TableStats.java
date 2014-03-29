@@ -72,6 +72,7 @@ public class TableStats {
     Object[] histos;
     Stats[] fieldRanges;
     TupleDesc td;
+    HeapFileIterator it;
 
     /**
      * Create a new TableStats object, that keeps track of statistics on each
@@ -105,7 +106,7 @@ public class TableStats {
         for (int i = 0; i < fieldRanges.length; i++) {
             fieldRanges[i] = new Stats();
         }
-        HeapFileIterator it = (HeapFileIterator) file.iterator(new TransactionId());
+        it = (HeapFileIterator) file.iterator(new TransactionId());
         try {
             it.open();
         } catch (Exception e) {
@@ -230,9 +231,8 @@ public class TableStats {
      */
     public int estimateTableCardinality(double selectivityFactor) {
         // some code goes here
-        int numTups = totalTuples();
-        return (int) (numTups * selectivityFactor);
-        // return 0;
+        // int numTups = totalTuples();
+        return (int) ((double)totalTuples() * selectivityFactor);
     }
 
     /**

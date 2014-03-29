@@ -76,45 +76,64 @@ This function estimates the number of tuples produced by joining the two tables,
 Question 6.1
 
 The query plan our optimizer selected (for the 1% dataset) is:
-                                           π(d.fname,d.lname),card:1
-                                            |
-                                           ⨝(m.did=d.id),card:1
-                   _________________________|_________________________
-                   |                                                 |
-                  ⨝(a.id=c.pid),card:1                               |
-  _________________|__________________                               |
-  |                                  |                               |
- σ(a.lname=Spicer),card:1          ⨝(c.mid=m.mid),card:1             |
-  |                           _______|________                       |
- σ(a.fname=John),card:1      |                |                      |
-  |                         scan(Casts c)  scan(Movie_Director m)  scan(Director d)
-scan(Actor a)
+                           π(d.fname,d.lname),card:29729
+                            |
+                           ⨝(a.id=c.pid),card:29729
+  __________________________|___________________________
+  |                                                    |
+ σ(a.lname=Spicer),card:1                            ⨝(m.mid=c.mid),card:29729      
+  |                                    ________________|_________________
+ σ(a.fname=John),card:1               |                                |
+  |                                   ⨝(d.id=m.did),card:2791         |
+  |                           _________|_________                       |
+  |                           |                 |                     scan(Casts c)
+scan(Actor a)               scan(Director d)  scan(Movie_Director m)
 
-The orderJoins returns the plan with the best cost, which is computed in the helper function, computeCostandCardOfSubplan. This plan that the orderJoin returns makes sense because we would want to first join the Cast table and Movie Director table to get the condition that c.mid = m.mid, in other words get the directors matched with their cast. Then it selects fname=John and lname=Spicer from the Actor table so that the next step, joining the selection with the previous join result of Casts and Movie Directors, has a lower cost by having fewer tuples to consider. Lastly it joins the previous result with the Director table so that the condition m.did=d.id is met and then selects d.fname and d.lname. 
+The associated costs are:
+
+Join m:d (Cost =2603000.0, card = 2597)
+  Join c:m (Cost =2603000.0, card = 29729)
+    Join a:c (Cost =2603000.0, card = 29729)
+      a (Cost = 2603000.0, card = 0)
+      c (Cost = 1026000.0, card = 29729)
+    m (Cost = 6000.0, card = 2791)
+  d (Cost = 174000.0, card = 2597)
+
+
+The orderJoins returns the plan with the best cost, which is computed in the helper function, computeCostandCardOfSubplan. This plan that the orderJoin returns makes sense because joining Director with Movie_Director first is smart since these two tables are smaller than the Casts and Actor tables since there are less directors than actors, thus the joining of two fully scanned tables is not as costly. Naturally, the resulting table has reduced cardinality, which makes it more efficient to now join it with the full scanned Casts table. On the other hand, filtering out the Actor table by first selecting records with the name John Spicer reduces the table to only one record and now joining it with the resulting Director/Casts table keeps the cardinality stable and most efficient.
+
 
 Question 6.2
 
 We chose to run the following query:
-  select a.fname, a.lname     
-  from Actor a, Movie m, Casts c, Genre g
-  where a.id=c.pid and c.mid=m.id and g.mid=m.id
-  and g.genre = 'Comedy';
+
+  select m.name 
+  from Casts c, Movie m, Genre g 
+  where c.mid=m.id and g.mid=m.id 
+  and g.genre='Comedy' and m.year=2000;
 
 The query plan our optimizer selected (for the 1% dataset) is:
-                         π(a.fname,a.lname),card:1
-                          |
-                         ⨝(g.mid=m.id),card:1
-  ________________________|________________________
-  |                                               |
- σ(g.genre=Comedy),card:1                      ⨝(c.mid=m.id),card:1
-  |                                   ____________|_____________
-  |                                   |                        |
-  |                                  ⨝(a.id=c.pid),card:1      |
-  |                            _______|________                |
-  |                            |              |              scan(Movie m)
-scan(Genre g)                scan(Actor a)  scan(Casts c)
+                                   π(m.name),card:29729
+                                    |
+                                   ⨝(m.id=c.mid),card:29729
+                ____________________|____________________
+                |                                       |
+               ⨝(g.mid=m.id),card:1                   |
+  ______________|______________                         |
+  |                           |                         |
+ σ(g.genre=Comedy),card:1   σ(m.year=2000),card:63    |
+  |                           |                       scan(Casts c)
+scan(Genre g)               scan(Movie m)
 
-The orderJoins returns the plan with the best cost here as well, again computed in computeCostandCardOfSubplan. This plan makes sense because we would first want to join the Cast and Actor tables (a.id = c.pid), and then join that result with the Movie table to pair up all the actors with their respective movies (c.mid = m.id). Then we join that with the selection of movies with the genre = Comedy (g.mid = m.id)--which reduces the number of tuples in the genre table to loop through--to get the resulting table of actors starring in Comedy films. Lastly the plan selects the actors' first and last names.
+The associated costs are:
+
+Join g:m (Cost =150000.0, card = 0)
+    g (Cost = 150000.0, card = 0)
+  Join c:m (Cost =6.5541198E7, card = 62)
+    c (Cost = 1026000.0, card = 29729)
+    m (Cost = 86000.0, card = 62)
+
+The orderJoins returns the plan with the best cost here as well, again computed in computeCostandCardOfSubplan. This plan makes sense because it quickly filters the Genre and Movie tables before any joins to reduce their cardinality as much as possible. Only the Casts table is left to be joined unfiltered at the end since it does not have any possible filtering.
 
 Discuss and justify any changes you made to the API.
 
@@ -126,5 +145,5 @@ We don't have any missing or incomplete elements of our code, in terms of method
 
 Describe how long you spent on the project, and whether there was anything you found particularly difficult or confusing.
 
-The project took a few days to complete. The amount of detail we had to go into for answering questions 1 and 6 was particularly confusing, since it wasn't clear how thorough our responses were supposed to be. 
+The project took a few days to complete. The amount of detail we had to go into for answering questions 1 and 6 was particularly confusing, since it wasn't clear how thorough our responses were supposed to be.
 
